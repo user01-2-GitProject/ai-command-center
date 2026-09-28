@@ -9,24 +9,33 @@
 
 ## States
 
-`todo` → `in_progress` → `review` → `done`; use `blocked` for a concrete unmet prerequisite.
+`todo` → `in_progress` → `review` → `done`; use `blocked` for a concrete unmet prerequisite and `deferred` for work intentionally parked outside the current release scope.
 
-A blocked task must name the exact missing input/access, attempted checks and next unblock action. Never mark it done because time ran out. An unavailable telemetry field can be a valid discovery result; an untested adapter is not a verified integration.
+A blocked task must name the exact missing input/access, attempted checks and next unblock action. A deferred task is not blocked: it names the decision that parked it and stays reusable if that decision is reversed. Never mark either one done. Never mark it done because time ran out. An unavailable telemetry field can be a valid discovery result; an untested adapter is not a verified integration.
 
 ## Claim safely
 
 On Jimmy's machine, use the shared canonical checkout as the claim location, even when coding in another worktree:
 
 ```sh
-mkdir -p /home/jimmy/Projects/ai-command-center/.task-claims
-mkdir /home/jimmy/Projects/ai-command-center/.task-claims/ACC-02
+mkdir -p "/home/jimmy/Projects (jimmy's)/ai-command-center/.task-claims"
+mkdir "/home/jimmy/Projects (jimmy's)/ai-command-center/.task-claims/ACC-02"
 ```
+
+**Quote the path exactly as shown.** It contains a space and an apostrophe. An unquoted or single-quoted command does not fail loudly — it creates a directory somewhere else and reports success, so you hold no claim while believing you do. Verify with `ls "/home/jimmy/Projects (jimmy's)/ai-command-center/.task-claims"` before starting work.
 
 Replace ACC-02 with your task ID. The second mkdir is an atomic claim: if it already exists, do not overwrite it or take the task. Inspect its owner and choose another eligible task. In the claimed directory, write `owner.txt` with agent/session ID, UTC timestamp and workspace path; update the matching Library task note immediately. A crash between these steps leaves a reservation; operator must verify the owner is inactive before releasing it. Age alone is not permission to steal it.
 
 Also check the Library owner before claiming. The operator must reserve explicitly assigned remote tasks using the same mechanism. Agents without Library/shared filesystem access must use an explicit assignment and submit their handoff for operator synchronization; they cannot self-claim safely.
 
-Use one branch/worktree per task, named `task/ACC-NN-short-description`. Read git status before edits. Different agents own different task notes and output paths. Task ACC-08 defines the common interface before adapter/UI work starts.
+Use one branch/worktree per task, named `task/<task-id>-short-description`. Read git status before edits. Different agents own different task notes and output paths. Task ACC-08 defines the common interface and provider registry before adapter/UI work starts.
+
+## Task identifiers
+
+Two kinds of ID exist and both are valid claim targets:
+
+- **Numbered** — `ACC-NN`, e.g. `ACC-08`. Fixed one-off work.
+- **Provider instances** — `ACC-PV-<provider>` and `ACC-PA-<provider>`, e.g. `ACC-PV-codex`. These instantiate the reusable templates in `docs/TASKS.md`; adding a provider means creating a new pair of instances, not amending the plan. Existing numbered provider tasks remain valid instances; see the mapping table in the Library Plan of Attack.
 
 ## Bounded research
 
@@ -43,6 +52,6 @@ Discovery tasks deliver a named evidence file, not a promise to investigate. Sta
 
 ## First release boundary
 
-First prove ACC-13: one real session end to end. Continue toward ACC-14/15 for all three providers. If a provider cannot be supported, explicitly propose a smaller release to Jimmy; do not quietly check off unsupported integration work. Final retro visual styling requires Jimmy's design approval; neutral accessible UI and backend work can proceed beforehand.
+First prove ACC-13: one real session end to end. Continue toward ACC-14/15 for every provider currently registered. If a provider cannot be supported, explicitly propose a smaller release to Jimmy; do not quietly check off unsupported integration work. Final retro visual styling requires Jimmy's design approval; neutral accessible UI and backend work can proceed beforehand.
 
 Later work, not part of this queue: sending prompts, approvals that trigger agents, Telegram commands, token cost forecasting, remote access and production hosting.
