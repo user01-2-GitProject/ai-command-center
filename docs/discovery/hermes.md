@@ -371,3 +371,64 @@ The HTTP API carries `context_window` — the **denominator** (a model capabilit
 This does not weaken the rest of the document. Everything still available for Hermes — liveness, version, per-platform health, session identity, activity, model routing, cumulative usage with its `task` breakdown, and the context **limit** — is unaffected, as is the ACC-08 denominator finding, which matters more for the providers that *can* report occupancy.
 
 **Note for ACC-03 and ACC-PV-codex:** do not generalise this result. Hermes not exposing occupancy says nothing about Claude Code or Codex, which are separate products with their own stores. The context-window gauge may well be honest for them. Verify each independently — and check *capability*, not just whether a server happens to be running.
+
+---
+
+## Addendum — 2026-09-28: observable context *pressure*, and a mislabelled field
+
+Added after the correction above, prompted by Jimmy asking what the dashboard should show in place of a Hermes context gauge. Two findings, both verified.
+
+### `sessions.message_count` is the live-window count, not a lifetime total
+
+It counts messages **currently in the context window**. It goes **down** when Hermes compacts. Observed directly, ~40 minutes apart, on the same open session:
+
+| | 07:40 UTC | 08:20 UTC |
+| --- | --- | --- |
+| `message_count` | 335 | **125** |
+| messages with `compacted=1` | 243 | **561** |
+
+Verified across the whole store — `message_count` equals the `active=1` count for **26 of 26 sessions, zero exceptions**, while equalling the *total* row count for only 21 (the five compacted sessions are where they diverge):
+
+```sh
+sqlite3 "file:/home/jimmy/.hermes/state.db?mode=ro" "
+with c as (select s.id, s.message_count mc,
+  (select count(*) from messages m where m.session_id=s.id and m.active=1) act,
+  (select count(*) from messages m where m.session_id=s.id) tot from sessions s)
+select sum(mc=act) matches_active, sum(mc=tot) matches_total, sum(mc<>act) differs, count(*) n from c;"
+# 26 | 21 | 0 | 26
+```
+
+**ACC-09 must not label this field "total messages" or "messages exchanged".** It is `messages_in_window`. A UI showing it as a session total will silently shrink a long conversation every time Hermes compacts, which looks like data loss.
+
+The lifetime count is `select count(*) from messages where session_id = ?`, or `api_call_count` for turns.
+
+### Context pressure is observable even though occupancy is not
+
+Compaction leaves a durable trail. Sample (live, read-only):
+
+```
+source / model            in window   folded away   summaries   state
+telegram / gpt-6-luna           125           561           2   open
+telegram / gpt-6-luna            57           214           1   ended
+cli / gpt-5.6-luna               64            99           1   ended
+cli / gpt-5.6-luna               42            41           1   ended
+cli / gpt-6-sol                 236             0           0   ended
+cli / gpt-5.4-mini              160             0           0   ended
+```
+
+The last two rows carry more messages than any compacted session and **never compacted once** — while row three compacted repeatedly at a quarter that size. Message count alone therefore predicts nothing about window pressure; the compaction trail does. Folding also has a measurable cost: `session_model_usage` where `task='compression'` shows 3 API calls and 63,007 input tokens.
+
+Available fields: `active=1` count (in window), `compacted=1` count (folded away), `_compressed_summary=1` count (summary artifacts), `rewind_count`, and a set of compression-health columns — `compression_fallback_streak`, `compression_ineffective_count`, `compression_failure_cooldown_until`, `compression_recovery_deadline`, `compression_failure_error`. All five health columns are currently zero/NULL across 26 sessions, i.e. they are **trouble indicators**, dormant in the healthy case, and worth surfacing as an alert rather than a routine readout.
+
+### Decision (Jimmy, 2026-09-28): a context pressure strip replaces the gauge
+
+The Hermes context slot shows messages in window, messages folded away, summary count, and the window size (272,000 for the Codex-routed models, which *is* known) as honest context.
+
+**Two hard constraints on rendering it:**
+
+1. **Numbers and events, never a fill bar.** Compaction count says the window *has* overflowed N times; it says nothing about how full it is now — immediately after a compaction it is nearly empty. Anything bar- or dial-shaped implies a fullness reading that does not exist. This is a proxy for pressure and history, not a substitute for occupancy.
+2. **The card states that occupancy is unavailable**, with the reason, rather than letting the pressure strip imply the gauge was satisfied.
+
+This is design input for **ACC-05**, recorded here because the evidence lives here. ACC-05 owns the actual screen definition; this task does not design it.
+
+Separately, Jimmy noted that making the dashboard an operable client for agents is a **future major feature in its own right**, not a sub-task of any adapter. The observe-only constraint in the plan's Guardrails stands for this release.
