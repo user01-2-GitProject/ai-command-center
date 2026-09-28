@@ -2,7 +2,52 @@
 
 Task status and checkboxes live in the Library. These specifications define the work, not its current completion state.
 
-Initially eligible: ACC-01–ACC-05. ACC-00 is plan installation.
+Initially eligible: ACC-01, ACC-05, and every `ACC-PV-*` provider instance. ACC-00 is plan installation.
+
+## Providers are data, not plan structure
+
+Supported providers are a registry entry plus one adapter module. Adding or removing a provider must not require amending this plan, renumbering tasks, or editing shell and UI code.
+
+Two reusable templates below define all per-provider work. Each provider is an instance:
+
+| Provider | Discovery instance | Adapter instance | State |
+| --- | --- | --- | --- |
+| Hermes | ACC-02 | ACC-09 | active |
+| Claude Code | ACC-03 | ACC-10 | active |
+| Codex | ACC-PV-codex | ACC-PA-codex | active |
+| Buzz | ACC-04 | ACC-11 | deferred |
+
+Numbered instances predate the templates and keep their IDs and published anchors. New providers use `ACC-PV-<provider>` / `ACC-PA-<provider>`.
+
+## ACC-PV — Verify a provider's telemetry (template)
+
+Instantiate as `ACC-PV-<provider>`. Dependencies: none. Instances are independent and may run in parallel.
+
+Deliverable: `docs/discovery/<provider>.md`.
+
+Inspect the installed provider and its documented or local read interfaces using one non-sensitive session.
+
+Acceptance:
+- Record installed version, source path/API, and reproducible read-only checks.
+- Verify session identity, activity, model, context tokens and context limit separately; distinguish context occupancy from cumulative usage.
+- Record model identifiers exactly as the provider reports them, so the ACC-08 limit registry can key on them.
+- Include sanitized sample data and field availability/freshness. If unavailable, document the attempted checks and the exact limitation.
+- Identify the smallest safe adapter surface; do not read or export secrets, prompt content or full conversation content.
+
+## ACC-PA — Implement a provider adapter (template)
+
+Instantiate as `ACC-PA-<provider>`. Dependencies: the matching `ACC-PV` instance, and ACC-08.
+
+Deliverable: provider adapter module, its registry entry and focused tests.
+
+Implement only the read surface established by the matching discovery instance.
+
+Acceptance:
+- Acquire real sanitized session metadata and supported context values from the configured local source.
+- Register through the ACC-08 provider registry. The adapter is the only file naming this provider; shell and UI code contain no provider-specific branch.
+- Test offline/missing source, timeout, malformed data and stale measurements.
+- Unsupported metrics show unavailable with a reason; never fabricate a substitute percentage.
+- Record a reproducible live read, or mark integration verification blocked with the exact required access. Do not change or dispatch provider sessions.
 
 ## ACC-01 — Recover existing work and reconcile status
 
@@ -20,7 +65,7 @@ Acceptance:
 
 ## ACC-02 — Verify Hermes telemetry
 
-Dependencies: None.
+Instance of ACC-PV (provider: Hermes). Dependencies: None.
 
 Deliverable: `docs/discovery/hermes.md`.
 
@@ -35,7 +80,7 @@ Acceptance:
 
 ## ACC-03 — Verify Claude Code telemetry
 
-Dependencies: None.
+Instance of ACC-PV (provider: Claude Code). Dependencies: None.
 
 Deliverable: `docs/discovery/claude-code.md`.
 
@@ -50,6 +95,8 @@ Acceptance:
 
 ## ACC-04 — Verify Buzz telemetry
 
+**Deferred.** Instance of ACC-PV (provider: Buzz). Buzz is out of scope for the first release by Jimmy's decision of 2026-09-28. The specification below stays intact and reusable if that decision is reversed; do not claim or start it meanwhile.
+
 Dependencies: None.
 
 Deliverable: `docs/discovery/buzz.md`.
@@ -63,24 +110,47 @@ Acceptance:
 - Document read permissions, offline behavior and rate limits where known; never expose private keys.
 
 
+## ACC-PV-codex — Verify Codex telemetry
+
+Instance of ACC-PV (provider: Codex). Dependencies: None. Eligible now.
+
+Deliverable: `docs/discovery/codex.md`.
+
+Codex is installed at `~/.local/bin/codex` with local state under `~/.codex` (including `sessions/`, `log/` and sqlite databases). Establish what it exposes read-only for session discovery, status, model and context.
+
+Acceptance:
+- Apply every ACC-PV acceptance item.
+- Distinguish a live session from a historical transcript on disk; a stored session file is not proof of an active session.
+- Determine whether context measurements are per-session and whether their model limit is knowable; do not infer occupancy from cumulative token counts.
+- Read without mutating Codex state. Do not open, resume, modify or dispatch sessions, and do not copy conversation content or credentials out of `~/.codex`.
+
 ## ACC-05 — Define the first dashboard screen
 
 Dependencies: None.
 
 Deliverable: `docs/design/first-screen.md and an original mockup under docs/design/`.
 
-Use the recorded 16-bit isometric reference as inspiration for a readable operational screen. Inspect the image before claiming visual comparison.
+Use the recorded 16-bit isometric reference as inspiration for a readable operational screen. The reference is committed at `docs/design/reference/16bit-ops-room-reference.webp`. Inspect that file before claiming visual comparison; the original Hermes cache copy was lost, and this is the canonical copy.
+
+**The reference conflicts with this release's guardrails in four places. Treat its layout as inspiration and these four as non-goals:**
+
+- Its `HUMAN IN THE LOOP` panel with APPROVE / REJECT / MODIFY is the most prominent element, but approvals that trigger agents are explicitly deferred. The first release is read-only; do not design a control surface for it.
+- Its headline metric, `TOKEN BURN RATE / MIN`, is cumulative throughput, not context occupancy. The top-priority requirement is occupancy. Do not let a burn-rate gauge stand in for the context view.
+- Its `AGENT LOGS / REASONING` panel renders prompt and query text. Show tool names, outcomes and errors; do not surface prompt content or conversation text.
+- Its `Confidence 88%` field is unlikely to exist in any provider. Do not design a component that depends on a metric no provider has agreed to supply.
 
 Acceptance:
 - Show agent/session identity, activity, context used/limit, measurement source, updated time, stale/unavailable states and errors.
 - Use explicitly labeled sample data in mockups; never present it as live telemetry.
 - Include keyboard navigation, readable text, reduced motion, narrow-window layout and a plain list view.
 - Present one recommended design and list consequential choices for Jimmy. Mark visual approval pending until received; backend tasks may proceed.
+- The isometric view is one view among several, never the only one. A plain list view must show the same information without it.
+- State explicitly which reference elements were deliberately not built, and why.
 
 
 ## ACC-06 — Choose the MVP architecture
 
-Dependencies: ACC-01, ACC-02, ACC-03, ACC-04.
+Dependencies: ACC-01 and at least two completed ACC-PV instances. ACC-04 (Buzz) is deferred and is not required.
 
 Deliverable: `docs/architecture.md`.
 
@@ -88,6 +158,7 @@ Synthesize discovery into one bounded local-only implementation plan. Choose too
 
 Acceptance:
 - Name the chosen stack, localhost startup approach, data flow and smallest first integration, with evidence-based reasons.
+- Define a provider registry: providers are declared in one manifest that the shell iterates. Adding or removing a provider must not require editing shell or UI code, and no provider name may appear outside its own adapter.
 - Define adapter boundaries, timeout/error isolation, credential handling and storage/retention; default to memory and minimal metadata.
 - Define freshness thresholds and prohibit deriving percent used without compatible numerator/denominator.
 - List unsupported metrics honestly and decide what the first release can prove. Remote access, messaging and deployment stay out of scope.
@@ -112,20 +183,23 @@ Acceptance:
 
 Dependencies: ACC-07.
 
-Deliverable: `Shared adapter interface, normalized models and contract tests`.
+Deliverable: `Shared adapter interface, provider registry, model context-limit registry, normalized models and contract tests`.
 
-Implement one normalized session model and adapter interface for the three providers.
+Implement one normalized session model, one adapter interface, and the two registries every provider depends on. This task owns the denominator: no other task may define where a model's context limit comes from.
 
 Acceptance:
 - Model source/provider/session/model identity, activity status, observed time, freshness, context used/limit and explicit unavailable reason.
 - Keep lifecycle status separate from context freshness; unknown is never silently zero.
-- Test missing limits, zero limits, mismatched measurements, stale data, malformed input and provider errors.
+- Implement a **provider registry**: adapters register through it, and the shell resolves providers only through it.
+- Implement a **model context-limit registry** as the single source of truth mapping a provider-reported model identifier to its context limit. An unrecognised model yields an explicit unknown limit, never a default or a guess. Percent used is computed only from a used/limit pair measured against the same model; otherwise the percentage is unavailable.
+- Ship a contract test that **registers a dummy provider, asserts it appears, removes it, and asserts it disappears** — with no change to shell or UI code. This is the executable proof that providers can be added and subtracted.
+- Test missing limits, zero limits, unknown models, mismatched measurements, stale data, malformed input and provider errors.
 - Adapters are independently replaceable and cannot execute instructions from telemetry.
 
 
 ## ACC-09 — Implement Hermes read-only adapter
 
-Dependencies: ACC-02, ACC-08.
+Instance of ACC-PA (provider: Hermes). Dependencies: ACC-02, ACC-08.
 
 Deliverable: `Hermes adapter and focused tests`.
 
@@ -140,7 +214,7 @@ Acceptance:
 
 ## ACC-10 — Implement Claude Code read-only adapter
 
-Dependencies: ACC-03, ACC-08.
+Instance of ACC-PA (provider: Claude Code). Dependencies: ACC-03, ACC-08.
 
 Deliverable: `Claude Code adapter and focused tests`.
 
@@ -155,6 +229,8 @@ Acceptance:
 
 ## ACC-11 — Implement Buzz read-only adapter
 
+**Deferred.** Instance of ACC-PA (provider: Buzz), parked with ACC-04. Do not claim while ACC-04 is deferred.
+
 Dependencies: ACC-04, ACC-08.
 
 Deliverable: `Buzz adapter and focused tests`.
@@ -167,6 +243,18 @@ Acceptance:
 - Verify one real read when access exists, or mark integration verification blocked with exact required access.
 - No joining, sending, agent dispatch, credential changes or invented context metrics.
 
+
+## ACC-PA-codex — Implement Codex read-only adapter
+
+Instance of ACC-PA (provider: Codex). Dependencies: ACC-PV-codex, ACC-08.
+
+Deliverable: Codex adapter, its registry entry and focused tests.
+
+Acceptance:
+- Apply every ACC-PA acceptance item.
+- Keep historical on-disk sessions distinct from live ones; never present a stale transcript as an active session.
+- Test a missing or unreadable `~/.codex`, a locked or partially written sqlite database, and malformed session records.
+- No conversation content, prompt text or credentials leave the adapter boundary.
 
 ## ACC-12 — Build the dashboard panels
 
@@ -189,7 +277,7 @@ Dependencies: ACC-12.
 
 Deliverable: `Integrated local application and docs/verification/first-slice.md`.
 
-Also requires ONE of ACC-09/10/11 fully verified. Connect that adapter to the real UI before expanding integration work.
+Also requires any one `ACC-PA` instance fully verified. Connect that adapter to the real UI through the registry before expanding integration work.
 
 Acceptance:
 - Show at least one real session end to end with provenance and updated time.
@@ -200,15 +288,16 @@ Acceptance:
 
 ## ACC-14 — Combine providers and verify isolation
 
-Dependencies: ACC-09, ACC-10, ACC-11, ACC-13.
+Dependencies: ACC-13, and at least two verified `ACC-PA` instances.
 
 Deliverable: `Provider composition and docs/verification/multi-provider.md`.
 
-Combine independently verified adapters. If one cannot be verified, leave this task blocked; propose a smaller release explicitly rather than marking it complete.
+Combine independently verified adapters. The gate is two or more verified providers, not a fixed list; deferred providers do not block it. If fewer than two can be verified, leave this task blocked and propose a smaller release explicitly rather than marking it complete.
 
 Acceptance:
-- Show each provider independently with real verified data or explicit field-level unavailability.
+- Show each registered provider independently with real verified data or explicit field-level unavailability.
 - A failing provider does not stop or erase healthy providers.
+- Removing a provider from the registry removes it cleanly from the UI, and adding one back requires no shell or UI change.
 - Verify bounded polling, cancellation, timeout handling and no overlapping runaway refreshes.
 - Keep provider/session identities distinct and avoid aggregating incompatible context limits.
 
