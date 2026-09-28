@@ -137,7 +137,15 @@ context_used, context_max, context_percent, context_source, context_estimated, c
 
 But `agent/context_breakdown.py:105` shows the values are read off a **live in-memory agent's compressor object** (`compressor.last_prompt_tokens`, `compressor.context_length`). They are computed per-turn and never persisted to `state.db`. `tui_gateway` serves the TUI/Desktop client, which obtains them by *being* the process hosting the agent. Reaching it from outside would mean spawning a Hermes client process and attaching to a live agent — not a read-only observation, and beyond what the plan authorizes.
 
-There is also a full local HTTP API in the tree (`hermes_cli/web_routers/`, with `/api/sessions`, `/api/sessions/{id}`, `/api/sessions/stats`, plus `analytics.py` and `dashboard_ui.py`) whose handlers already take a `read_only` flag. **It is not running:** no Hermes HTTP listener was present (`ss -ltnp` showed only pid 1119's unix socket for Hermes). Starting an api-server is a separate authorization decision, not part of ACC-02.
+There is also a full local HTTP API in the tree (`hermes_cli/web_routers/`, with `/api/sessions`, `/api/sessions/{id}`, `/api/sessions/stats`, plus `analytics.py` and `dashboard_ui.py`) whose handlers already take a `read_only` flag. **It is not running:** no Hermes HTTP listener was present (`ss -ltnp` showed only pid 1119's unix socket for Hermes).
+
+**And it would not help anyway** — see the correction at the foot of this document. The HTTP API exposes `context_window` (the *limit*) and no occupancy field at all:
+
+```sh
+grep -rnE 'context_(used|percent|max|source|estimated)' hermes_cli/web_routers/   # 0 matches
+```
+
+So Route 3 closes on its own merits, not merely because a server is stopped. `tui_gateway` remains the only surface carrying occupancy.
 
 > Note for whoever inspects ports: **127.0.0.1:18789 is `openclaw`, not Hermes** (pid 1120, `/usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789`). It sits next to Hermes' pid 1119 and is easy to misattribute. Hermes binds no TCP port at all.
 
@@ -145,7 +153,7 @@ There is also a full local HTTP API in the tree (`hermes_cli/web_routers/`, with
 
 For Hermes, context occupancy must render as **unavailable with a reason**, per ACC-PA's rule that unsupported metrics never get a fabricated substitute. Do not silently swap in cumulative tokens; as shown above that would read 105× over capacity.
 
-If occupancy for Hermes is later judged essential, it is a **separate scoped task** with real options to weigh (ask upstream to persist `last_prompt_tokens`; run the local api-server under an explicit decision; populate `messages.token_count`). It should not be smuggled into an adapter task.
+If occupancy for Hermes is later judged essential, it is a **separate scoped task**. The only real options are an upstream change (persist `last_prompt_tokens`, or populate `messages.token_count`) or making the dashboard a `tui_gateway` client, which means hosting/attaching to agent processes rather than observing them. Running the shipped HTTP API is **not** an option — it carries no occupancy field. It should not be smuggled into an adapter task.
 
 ## The denominator, and a trap worth 4×
 
@@ -329,5 +337,37 @@ Recorded here, not acted on:
 - **ACC-08:** key the limit registry on normalized `(model, base_url)`; observed cache beats models.dev; `unknown` is a first-class result; carry `context_source` provenance; handle `acp://` and empty-provider rows.
 - **ACC-05 / ACC-12:** Hermes needs an explicit context-`unavailable` treatment, not a gauge. Cumulative tokens and `session_model_usage.task` are worth showing, clearly labelled as lifetime.
 - **ACC-09:** the two-read surface and the failure list above.
-- **Separate decision, unowned:** whether to pursue Hermes context occupancy at all (upstream persistence of `last_prompt_tokens`, or running the local api-server). Needs Jimmy's call; it is not adapter work.
+- **Separate decision — resolved 2026-09-28, see correction below.** Jimmy confirmed the dashboard is for observing only, which rules out the `tui_gateway`-client route. Hermes context occupancy is accepted as permanently `unavailable` for this dashboard unless Hermes upstream starts persisting it.
 - **Housekeeping, unrelated:** local `main` in `/home/jimmy/Projects (jimmy's)/ai-command-center` is still at `cb43af6` while `origin/main` is `53d8bcc`. Left untouched — that worktree belongs to another session. Someone should fast-forward it before it misleads a future claim.
+
+---
+
+## Correction — 2026-09-28, later same day
+
+Appended rather than edited in place, per the repository's append-only evidence rule. The body above has been amended at the two points this correction affects; this entry records what was wrong and why.
+
+**What the first version of this document implied:** that running Hermes' shipped local HTTP API (`hermes_cli/web_routers/`) was one of the live options for obtaining context occupancy, pending an authorization decision about starting a server.
+
+**That was wrong, and it was asserted without checking.** The api-server's absence was verified; its *capability* was not. Verified afterwards:
+
+```sh
+grep -rnE 'context_(used|percent|max|source|estimated)' hermes_cli/web_routers/
+# 0 matches
+grep -rn 'context_window' hermes_cli/web_routers/
+# hermes_cli/web_routers/models.py:38   _CAPABILITY_FIELDS = (..., "context_window", ...)
+# hermes_cli/web_routers/analytics.py:215  "context_window": mc.context_window,
+```
+
+The HTTP API carries `context_window` — the **denominator** (a model capability) — and no occupancy field whatsoever. Starting the api-server would therefore yield nothing new for this metric. It remains a possible source for *limits*, which is mildly useful to ACC-08, but it is not a route to occupancy.
+
+**Corrected option set** for Hermes occupancy, if ever pursued:
+
+1. **Upstream change** — Hermes persists `last_prompt_tokens` per turn, or populates `messages.token_count`. Then a read-only adapter gets occupancy for free. Not under this project's control.
+2. **Become a `tui_gateway` client** — technically possible, but it means hosting or attaching to Hermes agent processes, i.e. operating Hermes rather than observing it.
+3. **Accept `unavailable`.**
+
+**Decision, from Jimmy, 2026-09-28:** the dashboard is for **observing**, not operating. That eliminates option 2 on scope grounds. Option 1 is not ours to make. **Hermes context occupancy is therefore accepted as `unavailable`**, and the dashboard must render it as such with a reason.
+
+This does not weaken the rest of the document. Everything still available for Hermes — liveness, version, per-platform health, session identity, activity, model routing, cumulative usage with its `task` breakdown, and the context **limit** — is unaffected, as is the ACC-08 denominator finding, which matters more for the providers that *can* report occupancy.
+
+**Note for ACC-03 and ACC-PV-codex:** do not generalise this result. Hermes not exposing occupancy says nothing about Claude Code or Codex, which are separate products with their own stores. The context-window gauge may well be honest for them. Verify each independently — and check *capability*, not just whether a server happens to be running.
