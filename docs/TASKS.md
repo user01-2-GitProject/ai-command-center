@@ -136,7 +136,7 @@ Use the recorded 16-bit isometric reference as inspiration for a readable operat
 
 - Its `HUMAN IN THE LOOP` panel with APPROVE / REJECT / MODIFY is the most prominent element, but approvals that trigger agents are explicitly deferred. The first release is read-only; do not design a control surface for it.
 - Its headline metric, `TOKEN BURN RATE / MIN`, is cumulative throughput, not context occupancy. The top-priority requirement is occupancy. Do not let a burn-rate gauge stand in for the context view.
-- Its `AGENT LOGS / REASONING` panel renders prompt and query text. Show tool names, outcomes and errors; do not surface prompt content or conversation text.
+- Its `AGENT LOGS / REASONING` panel renders prompt and query text. Jimmy requested an observer-visible shared conversation; show attributed messages and concise public-facing summaries, but never raw prompts/private chain-of-thought.
 - Its `Confidence 88%` field is unlikely to exist in any provider. Do not design a component that depends on a metric no provider has agreed to supply.
 
 Acceptance:
@@ -144,6 +144,7 @@ Acceptance:
 - Use explicitly labeled sample data in mockups; never present it as live telemetry.
 - Include keyboard navigation, readable text, reduced motion, narrow-window layout and a plain list view.
 - Present one recommended design and list consequential choices for Jimmy. Mark visual approval pending until received; backend tasks may proceed.
+- Show an observer-visible brain/specialist conversation surface, task state and a provider configuration direction; real sending and credential storage are later gated tasks, not part of this mockup.
 - The isometric view is one view among several, never the only one. A plain list view must show the same information without it.
 - State explicitly which reference elements were deliberately not built, and why.
 
@@ -161,7 +162,7 @@ Acceptance:
 - Define a provider registry: providers are declared in one manifest that the shell iterates. Adding or removing a provider must not require editing shell or UI code, and no provider name may appear outside its own adapter.
 - Define adapter boundaries, timeout/error isolation, credential handling and storage/retention; default to memory and minimal metadata.
 - Define freshness thresholds and prohibit deriving percent used without compatible numerator/denominator.
-- List unsupported metrics honestly and decide what the first release can prove. Remote access, messaging and deployment stay out of scope.
+- List unsupported metrics honestly and decide what the first release can prove. Remote access and deployment remain out of scope. Jimmy requested operator chat with the brain bot, a shared specialist conversation, and provider credential setup on 2026-09-29; these are future operational features tracked under ACC-16/17 and require local security/credential architecture first.
 
 
 ## ACC-07 — Create a runnable local shell
@@ -315,3 +316,36 @@ Acceptance:
 - Check secret exclusion, inert telemetry rendering, minimal data retention and readable failure recovery.
 - Verify keyboard/reduced-motion behavior, bounded polling and no message/dispatch capability hidden in the first release.
 - Record passed/failed checks with revision and date, known limitations and shutdown instructions. Do not deploy or enable remote access.
+
+
+## ACC-16 — Add local provider credential setup
+
+Dependencies: ACC-06, ACC-07, ACC-08.
+
+Deliverable: `OS credential-vault adapter, provider settings UI and security tests`.
+
+Implement the provider/API-key setup requested on 2026-09-29. Define the supported OS credential store and local-only threat model before enabling any input.
+
+Acceptance:
+- Keys are written/read/removed only through the OS credential vault from the trusted local backend; never browser storage, repo config, logs, telemetry or Library notes.
+- UI accepts a secret only over loopback, never echoes it, and shows masked presence, provider, validation time and redacted errors.
+- Tests prove secrets are absent from responses, logs, browser storage, crash output and exported diagnostics.
+- Missing/locked vault and invalid-key cases fail closed without breaking non-secret read-only panels.
+- No real key is needed in automated tests or evidence.
+
+
+## ACC-17 — Build operator chat and shared specialist conversation
+
+Dependencies: ACC-06, ACC-07, ACC-08, ACC-16, and at least one verified provider adapter with an explicitly supported send surface.
+
+Deliverable: `Local operator chat, shared conversation/event model, approval gate and security tests`.
+
+Implement the requested ability to chat with the brain bot and observe specialist coordination. Keep the transcript local unless Jimmy separately approves an existing transport; do not create external channels implicitly.
+
+Acceptance:
+- Before every send, show the exact agent/provider, session or channel, prompt, workspace, expected effect and any side effects; require deliberate confirmation and support cancel/edit.
+- Record actor, target, timestamp, correlation ID and lifecycle in an auditable local event model. Return agent results to operator review; never mark them accepted automatically.
+- Display attributable messages, task-state events, tool/action names, outcomes and concise public-facing summaries. Never expose private hidden chain-of-thought or raw secrets.
+- Provider text is rendered inert; session histories are minimal, local, and subject to explicit retention/deletion controls.
+- Demonstrate offline, permission-denied, failed-send and partial-provider states without fabricating a shared conversation.
+- Bind to loopback only. Remote access, deployment and third-party shared channels remain separate approvals.
