@@ -2,7 +2,7 @@
 
 A local-first dashboard for Jimmy to oversee agent sessions, with trustworthy context-window visibility and a readable 16-bit-inspired interface. Hermes, Claude Code and Codex are the first providers; providers are pluggable by design.
 
-**Current deliverable: the execution plan. No application has been built yet.**
+The runnable shell deliberately shows **Not connected**. Provider adapters arrive in later tasks; no demo sessions are represented as live data.
 
 ## Start here, agents
 
@@ -16,22 +16,35 @@ GitHub holds code, technical specifications and test evidence. The Library holds
 
 If you cannot access the Library, use an explicit task assignment from Jimmy/operator, work in an isolated branch, and return the handoff for synchronization. Do not guess ownership or claim the whole project is complete.
 
-## First milestone
+## Run locally
 
-One real provider session displayed locally with source, timestamp and honest context availability. A beautiful mockup alone does not meet this milestone.
+Requires Python 3.12 or newer. Create the virtual environment and install the pinned runtime dependency set (currently empty because the shell uses only the standard library):
 
-The committed visual reference lives at `docs/design/reference/16bit-ops-room-reference.webp`. It is inspiration, not a specification: its approval controls, token burn-rate gauge, reasoning-text panel and confidence metric are all out of scope or unavailable. See ACC-05.
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.lock
+```
 
-See [task specifications](docs/TASKS.md), [completion rules](docs/WORKFLOW.md), and [handoff template](docs/HANDOFF-TEMPLATE.md).
+Start the dashboard with:
 
-## Scope
+```sh
+.venv/bin/python -m acc
+```
 
-- Independent read-only adapters behind a provider registry. Hermes, Claude Code and Codex are active; Buzz is deferred. Adding or removing a provider is a registry entry plus one adapter module, never a plan amendment.
-- Context values only when measured against a known compatible model limit.
-- Explicit unavailable, stale, offline and error states.
-- Localhost only. Messaging, Telegram commands, remote access and deployment are later decisions.
+Open http://127.0.0.1:8765. The server binds to IPv4 loopback only. Stop it with Ctrl+C. To select another local port, set `ACC_PORT` to an integer from 1024 through 65535; the bind address remains fixed at `127.0.0.1`.
 
-There are no installation or application test commands yet. ACC-07 must add and verify them when the application exists.
+## Checks and build
+
+```sh
+.venv/bin/python -m compileall -q acc tests scripts
+node --check acc/static/app.js
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python scripts/build_zipapp.py
+```
+
+Run the packaged application with `python3 dist/acc.pyz`. GitHub Actions runs the same compile, test and zipapp build steps on pushes and pull requests.
+
+The service exposes only an empty snapshot and static files. It has no provider connections, message sending, credential handling, telemetry persistence or remote binding. See [the task queue](docs/TASKS.md) and [architecture decision](docs/architecture.md) for the implementation sequence and safety boundaries.
 
 ## Reusable assignment
 
