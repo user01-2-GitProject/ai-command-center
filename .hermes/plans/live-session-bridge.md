@@ -1,0 +1,13 @@
+# ACC-19 live bridge plan
+
+Base is ACC-12 remote `2404a43`; canonical main `0ac30cc` contains the reviewed Codex adapter and ACC-08 contract. Own only ACC-19; preserve other branches, active previews, claims and user art decisions. No remote writes, merge, dispatch, credential changes or deployment.
+
+1. Baseline: run canonical `tests/` and preview `app/tests/` independently. TDD one tracer bullet at a time.
+2. Fix package collision: move old `app/acc` demo-support package to `app/demo_support` and update only its consumers/tests/docs. Canonical `acc.models`, registry and adapter remain unchanged. Tests prove both packages can coexist and the live server defaults to the canonical manifest.
+3. New `app/live_sessions.py`: poll actual canonical adapter snapshots with bounded executor/in-flight protection, cache metadata in RAM only, sanitize failures, serialize an allowlist into the existing isometric API. Use canonical context semantics/freshness/percentage rules; missing route and last_request_input cannot produce occupancy. No guessed context-limit registry for live mode.
+4. Add generic view fields for source version, context semantics, independently aged timestamps and historical last-request input. Update UI labels/dimming/unknown state and stop stale selected details; avoid treating poll time as a source update. Demonstrate unavailable occupancy rather than a fake 100%-filled bar.
+5. Wire default live mode through the canonical adapter manifest, but keep explicit empty-registry injection and demo mode for tests. Reuse existing canonical loopback Host/Origin/CSP safeguards. Serve only validated files under UI root; fix shutdown deadlock and skip overlapping polls. No raw provider errors/tracebacks exposed.
+6. Verify both suites, live HTTP metadata, source disconnect/reconnect and browser live/list/detail/reduced-motion tests in a separate owned local server/profile. Real data is not a fixture; save only sanitized metadata/counts/source receipts, never prompts or secrets. Capture real UI screenshot.
+7. Independent code review, local commit, clean diff and Library handoff with exact revision/tests/limitations. Status review, not done; integration and design acceptance remain separate. No push/merge.
+
+Known inherited gaps: app/UI model is older than canonical ACC-08; current preview uses an unsupported per-provider/model limit key. Quarantine demo legacy rules and never reuse them for live context. Iggy source images were checked on disk: 26,704 and 27,384 bytes, actual files, not LFS pointers. Preserve them; no invented or downloaded replacement art in this data-integration slice.

@@ -349,3 +349,33 @@ Acceptance:
 - Provider text is rendered inert; session histories are minimal, local, and subject to explicit retention/deletion controls.
 - Demonstrate offline, permission-denied, failed-send and partial-provider states without fabricating a shared conversation.
 - Bind to loopback only. Remote access, deployment and third-party shared channels remain separate approvals.
+
+
+## ACC-19 — Bridge the isometric preview to canonical live telemetry
+
+Dependencies: ACC-08 and an accepted/merged ACC-PA adapter. Additive local
+integration slice, not acceptance of the full ACC-12/13 dashboard.
+
+Deliverable: read-only canonical adapter consumer, namespace isolation from demo
+fixtures, truthful UI aging, bounded canvas work, original asset decoding and
+real-source test receipts. See `app/README.md` and
+`docs/verification/live-session-bridge/report.md`.
+
+Acceptance:
+- Live mode consumes canonical `acc.models`/registry and only merged adapters in
+  the trusted manifest. Demo support must not shadow canonical package names or
+  supply live context limits.
+- Export only allowlisted metadata; historical input never feeds occupancy.
+  Source/session/context ages and source disconnect are separate. No event
+  becomes fresh merely because it was polled.
+- Cache remains memory-only. Hung readers have bounded wait and no duplicate
+  queued reads; raw errors, private content and routes never reach the UI.
+- Keep unknown/stale activity stationary; update selected details on failure and
+  reconnect. Use provider-qualified keys, bounded room cardinality and an
+  explicitly complete returned-session list with source-cap labels.
+- Bind only to loopback, enforce Host/Origin/CSP and a static asset whitelist.
+  Verify actual browser/image behavior, not just HTTP 200 or model fixtures.
+- Preserve artwork provenance; decoding a supplied encoded PNG is not new art.
+  Full visual approval and ACC-18/Iggy layout integration remain operator gates.
+- Record actual tests, revisions, review verdict and remaining limitations.
+  Do not merge, deploy, enable messaging/credentials or claim ACC-13 complete.

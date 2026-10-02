@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "url": "http://127.0.0.1:36551",
+  "checks": [
+    "Synthetic canonical-contract fixtures, NOT actual sources",
+    "Codex historical input is not occupancy",
+    "Unknown/stale agent positions remain stationary",
+    "Canvas work bounded, full list retained",
+    "Original Iggy sprite decoded",
+    "Every returned session appears in plain list",
+    "Details explain historical input, provenance and missing route",
+    "Transport failure updates cached rows and selected details",
+    "Reconnect restores actual metadata",
+    "Dynamic reduced motion stops decoration",
+    "Beyond-first-six selection immediately synchronizes mobile tiles in sector/list and paused/animated modes",
+    "Mobile sector has no horizontal overflow",
+    "No external requests or runtime/console errors"
+  ],
+  "session_count": 8,
+  "observed_at": "2026-10-02T01:13:54.366Z",
+  "provenance": "Synthetic canonical-contract fixture server, not actual provider telemetry; injected transport failure restored.",
+  "screenshot_files": [
+    "desktop-live.png",
+    "list-details-live.png",
+    "mobile-live.png"
+  ]
+}

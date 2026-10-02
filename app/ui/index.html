@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Command Center</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<div class="sample-banner" id="demoBanner" hidden>[!] SAMPLE DATA — DEMO FIXTURES, NOT LIVE TELEMETRY [!]</div>
+<div class="conn-error" id="connError" hidden>CONNECTION LOST — cannot reach the local server. Retrying&hellip;</div>
+
+<header>
+  <div class="title">AI COMMAND CENTER</div>
+  <div class="badges">
+    <span class="badge">LOCALHOST</span>
+    <span class="badge" id="modeBadge">LIVE</span>
+    <span id="clock">updated --</span>
+  </div>
+  <div class="controls" role="toolbar" aria-label="Dashboard controls">
+    <button id="viewBtn" title="Toggle sector / plain list (keys 1/2)">VIEW: SECTOR</button>
+    <button id="motionBtn" title="Toggle animation">MOTION: ON</button>
+    <button id="refreshBtn" title="Refresh now (key r)">REFRESH</button>
+  </div>
+</header>
+
+<main>
+  <p class="sr">Keys: 1 sector view, 2 list view, arrows move between sessions, Enter opens details, R refreshes.</p>
+  <p class="note">The room shows up to six indexed sessions; the list shows every returned session. Iggy is decorative, not an activity indicator. Agent movement requires fresh, explicitly verified busy state.</p>
+
+  <div class="empty-state" id="emptyState" hidden>
+    <strong>NO PROVIDERS CONNECTED</strong>
+    <span>Live mode: no provider adapters are registered, so there is
+    nothing to show yet — and no demo data is substituted.<br>
+    Live adapters must be enabled in the reviewed adapter manifest.
+    To preview the UI, restart with <code>--demo</code>.</span>
+  </div>
+
+  <div id="boardView" aria-label="Sector board">
+    <section class="sector-view" aria-label="Robot room viewport">
+      <div class="viewport" id="viewport">
+        <canvas id="sector" tabindex="0" role="application"
+          aria-label="Robot room viewport. Arrow keys move between sessions, Enter opens details."></canvas>
+        <div class="vp-tag" aria-hidden="true"><span class="live-dot"></span>ROBOT ROOM</div>
+        <div class="vp-count" id="vpCount" aria-hidden="true"></div>
+      </div>
+      <div class="agent-tiles" id="agentTiles" aria-label="Agent windows"></div>
+    </section>
+
+    <div class="sidecol">
+      <section class="win" aria-label="Recent tool activity">
+        <div class="win-bar" aria-hidden="true"><span class="win-icon"></span><span class="win-title">TOOL ACTIVITY — NEWEST FIRST</span><span class="win-btns"><i>_</i><i>&#9633;</i><i class="x">X</i></span></div>
+        <div class="win-body"><div id="activityBody"></div></div>
+      </section>
+
+    </div>
+
+    <section class="win load-win" aria-label="Context load">
+      <div class="win-bar" aria-hidden="true"><span class="win-icon"></span><span class="win-title">CONTEXT LOAD</span><span class="win-btns"><i>_</i><i>&#9633;</i><i class="x">X</i></span></div>
+      <div class="win-body" id="loadBody"></div>
+    </section>
+
+    <section class="win prov-win" aria-label="Providers">
+      <div class="win-bar" aria-hidden="true"><span class="win-icon"></span><span class="win-title">PROVIDERS</span><span class="win-btns"><i>_</i><i>&#9633;</i><i class="x">X</i></span></div>
+      <div class="win-body" id="provBody"></div>
+    </section>
+  </div>
+
+  <section id="listView" aria-label="Plain list">
+    <table>
+      <caption>SESSIONS — PLAIN LIST (SAME DATA AS BOARD)</caption>
+      <thead><tr>
+        <th scope="col">Session</th><th scope="col">Provider</th><th scope="col">Model</th>
+        <th scope="col">Activity</th><th scope="col">Context used</th><th scope="col">Limit</th>
+        <th scope="col">Occupancy</th><th scope="col">Source</th><th scope="col">Updated</th><th scope="col">State</th>
+      </tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </section>
+  <section class="win" id="detailWin" aria-label="Session details" hidden>
+    <div class="win-bar" aria-hidden="true"><span class="win-icon"></span><span class="win-title" id="detailTitle">SESSION</span><span class="win-btns"><i>_</i><i>&#9633;</i><i class="x" id="detailX">X</i></span></div>
+    <div class="win-body"><dl id="detailDl"></dl></div>
+  </section>
+</main>
+
+<footer>
+  Local-first dashboard. Demo fixtures are never shown without the SAMPLE
+  DATA banner; live mode with no adapters shows an honest empty state.
+  No prompt or conversation content is rendered anywhere on this screen.
+</footer>
+
+<script src="/ui/telemetry.js"></script>
+<script src="/ui/app.js"></script>
+</body>
+</html>

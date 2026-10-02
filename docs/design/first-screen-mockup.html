@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Command Center — First Screen (sample data)</title>
+<style>
+  :root{
+    --bg:#0a1420; --bg2:#0d1b2a; --panel:#122539; --panel2:#162c44;
+    --line:#2a4a73; --line-bright:#3f6ea6;
+    --ink:#d7e8ff; --dim:#8ba3c4; --faint:#5b7396;
+    --green:#39ff6a; --cyan:#41e6ff; --amber:#ffb347; --red:#ff5a5a;
+    --pixel:"Courier New",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--pixel);
+    font-size:14px; line-height:1.45; padding:0 0 48px;
+    image-rendering:pixelated;
+  }
+  /* ---------- sample banner ---------- */
+  .sample-banner{
+    background:repeating-linear-gradient(45deg,#3a2b00,#3a2b00 12px,#2e2300 12px,#2e2300 24px);
+    color:var(--amber); border-bottom:3px solid var(--amber);
+    text-align:center; font-weight:bold; letter-spacing:2px;
+    padding:8px 12px; font-size:13px;
+  }
+  /* ---------- header ---------- */
+  header{
+    display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+    padding:14px 18px; border-bottom:3px solid var(--line);
+    background:var(--bg2);
+  }
+  .title{font-size:20px; font-weight:bold; letter-spacing:3px; color:var(--cyan);
+    text-shadow:2px 2px 0 #06303a;}
+  .badges{display:flex; align-items:center; gap:10px; margin-right:auto}
+  .badge{
+    border:2px solid var(--green); color:var(--green);
+    padding:2px 8px; font-size:12px; letter-spacing:2px; font-weight:bold;
+  }
+  #clock{color:var(--dim); font-size:13px}
+  .controls{display:flex; gap:8px; flex-wrap:wrap}
+  button{
+    font-family:var(--pixel); font-size:13px; font-weight:bold;
+    background:var(--panel); color:var(--ink);
+    border:3px solid var(--line-bright); padding:6px 10px; cursor:pointer;
+    box-shadow:3px 3px 0 #000;
+  }
+  button:hover{background:var(--panel2); border-color:var(--cyan)}
+  button:active{transform:translate(2px,2px); box-shadow:1px 1px 0 #000}
+  button:focus-visible, [tabindex]:focus-visible{
+    outline:3px solid var(--cyan); outline-offset:2px;
+  }
+  /* ---------- board ---------- */
+  #boardView{padding:18px; display:grid; gap:18px;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+  .sector{
+    background:
+      repeating-linear-gradient(45deg,rgba(65,230,255,.03) 0 2px,transparent 2px 14px),
+      repeating-linear-gradient(-45deg,rgba(65,230,255,.03) 0 2px,transparent 2px 14px),
+      var(--panel);
+    border:3px solid var(--line); box-shadow:5px 5px 0 #000;
+    padding:12px;
+  }
+  .sector-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;
+    border-bottom:2px solid var(--line); padding-bottom:8px}
+  .sector-name{font-weight:bold; letter-spacing:2px; font-size:15px}
+  .pill{font-size:11px; letter-spacing:1px; padding:2px 8px; border:2px solid}
+  .pill.ok{color:var(--green); border-color:var(--green)}
+  .pill.stale{color:var(--amber); border-color:var(--amber)}
+  .pill.err{color:var(--red); border-color:var(--red)}
+  .node{
+    border:2px solid var(--line-bright); background:var(--bg2);
+    padding:10px; margin-bottom:10px; cursor:pointer; position:relative;
+  }
+  .node:hover{border-color:var(--cyan)}
+  .node[aria-selected="true"]{border-color:var(--cyan); box-shadow:0 0 0 2px var(--cyan),4px 4px 0 #000}
+  .node.dim{opacity:.55}
+  .node-top{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+  .glyph{font-size:18px; width:24px; text-align:center}
+  .glyph.working{color:var(--green); animation:pulse 1.6s steps(2) infinite}
+  .glyph.idle{color:var(--dim)}
+  .glyph.error{color:var(--red)}
+  @keyframes pulse{50%{opacity:.35}}
+  .node-name{font-weight:bold; letter-spacing:1px}
+  .node-model{color:var(--faint); font-size:12px; margin-left:auto}
+  .occ{display:flex; align-items:center; gap:8px; margin:6px 0}
+  .bar{display:flex; gap:2px; flex:1}
+  .seg{height:12px; flex:1; background:#1b2f47; border:1px solid #0a1420}
+  .seg.on{background:var(--green); box-shadow:0 0 4px var(--green)}
+  .seg.warn{background:var(--amber); box-shadow:0 0 4px var(--amber)}
+  .seg.unknown{background:repeating-linear-gradient(45deg,#2a3c55 0 3px,#182a42 3px 6px)}
+  .occ-label{font-size:12px; color:var(--dim); white-space:nowrap}
+  .node-meta{display:flex; gap:12px; font-size:12px; color:var(--faint); flex-wrap:wrap}
+  .stale-tag{color:var(--amber); font-weight:bold}
+  .err-text{color:var(--red); font-size:12px; margin-top:6px}
+  /* ---------- list view ---------- */
+  #listView{padding:18px}
+  table{width:100%; border-collapse:collapse; background:var(--panel)}
+  caption{text-align:left; padding:8px; color:var(--dim); font-size:13px; letter-spacing:1px}
+  th,td{border:2px solid var(--line); padding:8px 10px; text-align:left; font-size:13px}
+  th{background:var(--panel2); color:var(--cyan); letter-spacing:1px}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--panel2)}
+  tbody tr[aria-selected="true"]{outline:3px solid var(--cyan); outline-offset:-3px}
+  td.num{text-align:right; font-variant-numeric:tabular-nums}
+  /* ---------- detail strip ---------- */
+  #detail{margin:0 18px 18px; border:3px solid var(--cyan); background:var(--panel);
+    box-shadow:5px 5px 0 #000; padding:14px 16px}
+  #detail h2{margin:0 0 8px; font-size:16px; letter-spacing:2px; color:var(--cyan)}
+  #detail dl{display:grid; grid-template-columns:180px 1fr; gap:4px 12px; margin:0; font-size:13px}
+  #detail dt{color:var(--faint)}
+  #detail dd{margin:0}
+  #detailClose{margin-top:10px}
+  /* ---------- activity strip ---------- */
+  #activity{margin:0 18px; border:3px solid var(--line); background:var(--bg2); padding:12px 16px}
+  #activity h2{margin:0 0 8px; font-size:14px; letter-spacing:2px; color:var(--dim)}
+    .act{display:flex; gap:10px; font-size:13px; padding:3px 0; border-bottom:1px dotted #1d3350}
+  .act .tool{color:var(--cyan); min-width:110px}
+  .act .sess{color:var(--ink); min-width:120px}
+  .act .age{color:var(--faint); margin-left:auto}
+  .act .out-ok{color:var(--green)}
+  .act .out-err{color:var(--red)}
+  .act .note{color:var(--faint)}
+  footer{margin:18px; color:var(--faint); font-size:12px}
+  footer code{color:var(--dim)}
+  /* ---------- responsive / motion ---------- */
+  @media (max-width:720px){
+    #boardView{display:none}
+    #listView{display:block !important}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .glyph.working{animation:none}
+    *{transition:none !important}
+  }
+  html[data-motion="off"] .glyph.working{animation:none}
+  #listView{display:none}
+  html[data-view="list"] #boardView{display:none}
+  html[data-view="list"] #listView{display:block}
+  .sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="sample-banner" role="note">⚠ SAMPLE DATA — FOR DESIGN REVIEW ONLY · NOT LIVE TELEMETRY ⚠</div>
+
+<header>
+  <div class="title">AI COMMAND CENTER</div>
+  <div class="badges">
+    <span class="badge">LOCALHOST</span>
+    <span id="clock" aria-live="off">updated --</span>
+  </div>
+  <div class="controls" role="toolbar" aria-label="Dashboard controls">
+    <button id="viewBtn" title="Toggle sector board / plain list (keys 1/2)">VIEW: SECTOR</button>
+    <button id="motionBtn" title="Toggle animation">MOTION: ON</button>
+    <button id="refreshBtn" title="Refresh (key r)">REFRESH</button>
+  </div>
+</header>
+
+<main>
+  <p class="sr">Keys: 1 sector view, 2 list view, arrows move between sessions, Enter opens details, R refreshes.</p>
+
+  <!-- ============ SECTOR BOARD ============ -->
+  <section id="boardView" aria-label="Sector board"></section>
+
+  <!-- ============ PLAIN LIST ============ -->
+  <section id="listView" aria-label="Plain list">
+    <table>
+      <caption>SESSIONS — PLAIN LIST (SAME DATA AS BOARD)</caption>
+      <thead><tr>
+        <th scope="col">Session</th><th scope="col">Provider</th><th scope="col">Model</th>
+        <th scope="col">Activity</th><th scope="col">Context used</th><th scope="col">Limit</th>
+        <th scope="col">Occupancy</th><th scope="col">Source</th><th scope="col">Updated</th><th scope="col">State</th>
+      </tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ============ DETAIL STRIP ============ -->
+  <section id="detail" hidden aria-label="Session details">
+    <h2 id="detailTitle">SESSION</h2>
+    <dl id="detailDl"></dl>
+    <button id="detailClose">CLOSE (Esc)</button>
+  </section>
+
+  <!-- ============ ACTIVITY ============ -->
+  <section id="activity" aria-label="Recent tool activity">
+    <h2>RECENT TOOL ACTIVITY — NEWEST FIRST · NAMES &amp; OUTCOMES ONLY</h2>
+    <div id="activityBody"></div>
+  </section>
+</main>
+
+<footer>
+  Provenance: sample fixtures authored for ACC-05 design review, 2026-09-29.
+  Live mode will replace these with adapter reads; demo fixtures are never
+  shown without this banner. No prompt or conversation content is rendered anywhere on this screen.
+</footer>
+
+<script>
+"use strict";
+/* ---------------- sample data (explicitly fake) ---------------- */
+const SESSIONS = [
+  { id:"hermes-main", provider:"Hermes", model:"hermes-2-pro",
+    activity:"working", used:42150, limit:200000,
+    source:"measured via Hermes local API", ageSec:12, error:null,
+    tools:[["read_file","ok","",38],["web_search","ok","",21],["exec","error","timeout after 30s",9]] },
+  { id:"hermes-bg-01", provider:"Hermes", model:"hermes-2-pro",
+    activity:"idle", used:8400, limit:200000,
+    source:"measured via Hermes local API", ageSec:45, error:null,
+    tools:[["read_file","ok","",52]] },
+  { id:"cc-parent", provider:"Claude Code", model:"claude-opus-4-6",
+    activity:"working", used:96000, limit:200000,
+    source:"reported by provider CLI", ageSec:243, error:null,
+    tools:[["edit_file","ok","",230],["exec","ok","",196]] },
+  { id:"cc-child-3", provider:"Claude Code", model:"claude-opus-4-6-experimental",
+    activity:"idle", used:12300, limit:null,
+    source:"reported by provider CLI", ageSec:96, error:null, limitReason:"model id not in limit registry",
+    tools:[["web_search","ok","",88]] },
+  { id:"codex-main", provider:"Codex", model:"—",
+    activity:"error", used:null, limit:null,
+    source:"—", ageSec:null, error:"sqlite database locked — could not read sessions",
+    tools:[] },
+];
+const STALE_AFTER = 60; /* seconds; design placeholder, ACC-08 owns the real value */
+const SEGS = 20;
+
+/* ---------------- helpers ---------------- */
+const $ = s => document.querySelector(s);
+const fmtN = n => n == null ? "—" : n.toLocaleString("en-US");
+const rel = s => s == null ? "—" : s < 60 ? s + "s ago" : Math.floor(s/60) + "m ago";
+const pct = s => (s.used != null && s.limit) ? Math.round(s.used / s.limit * 100) : null;
+const stateOf = s => s.error ? "err" : (s.ageSec != null && s.ageSec > STALE_AFTER) ? "stale" : "ok";
+
+function barHTML(s){
+  let h = '<div class="bar" aria-hidden="true">';
+  if(s.limit){
+    const p = s.used / s.limit, lit = Math.round(p * SEGS);
+    for(let i=0;i<SEGS;i++){
+      const cls = i < lit ? (p > .85 ? "seg warn" : "seg on") : "seg";
+      h += `<span class="${cls}"></span>`;
+    }
+  } else {
+    for(let i=0;i<SEGS;i++) h += '<span class="seg unknown"></span>';
+  }
+  return h + "</div>";
+}
+function occLabel(s){
+  const p = pct(s);
+  if(p == null) return s.limitReason ? "limit unknown — no %" : "unavailable";
+  return p + "%";
+}
+
+/* ---------------- board ---------------- */
+const board = $("#boardView"), listBody = $("#listBody"), actBody = $("#activityBody");
+const byProvider = {};
+SESSIONS.forEach(s => { (byProvider[s.provider] ||= []).push(s); });
+
+Object.entries(byProvider).forEach(([prov, list]) => {
+  const worst = list.some(s=>stateOf(s)==="err") ? "err"
+    : list.some(s=>stateOf(s)==="stale") ? "stale" : "ok";
+  const pillTxt = {ok:"HEALTHY", stale:"STALE DATA", err:"PROVIDER ERROR"}[worst];
+  const sec = document.createElement("div");
+  sec.className = "sector";
+  sec.innerHTML = `<div class="sector-head">
+      <span class="sector-name">${prov.toUpperCase()}</span>
+      <span class="pill ${worst}">${pillTxt}</span></div>`;
+  list.forEach(s => {
+    const st = stateOf(s);
+    const glyph = s.activity === "working" ? "◉" : s.activity === "error" ? "✖" : "○";
+    const gcls = s.activity === "working" ? "working" : s.activity === "error" ? "error" : "idle";
+    const n = document.createElement("div");
+    n.className = "node" + (st === "stale" ? " dim" : "");
+    n.tabIndex = 0; n.setAttribute("role","button");
+    n.setAttribute("aria-selected","false");
+    n.dataset.sid = s.id;
+    n.setAttribute("aria-label", `${s.id}, ${s.activity}, context ${fmtN(s.used)} of ${fmtN(s.limit)}, ${occLabel(s)}, updated ${rel(s.ageSec)}${s.error ? ", error: "+s.error : ""}`);
+    n.innerHTML = `
+      <div class="node-top">
+        <span class="glyph ${gcls}" aria-hidden="true">${glyph}</span>
+        <span class="node-name">${s.id}</span>
+        <span class="node-model">${s.model}</span>
+      </div>
+      <div class="occ">${barHTML(s)}<span class="occ-label">${occLabel(s)}</span></div>
+      <div class="node-meta">
+        <span>ctx ${fmtN(s.used)} / ${fmtN(s.limit)}</span>
+        <span>upd ${rel(s.ageSec)}</span>
+        ${st==="stale" ? '<span class="stale-tag">STALE</span>' : ""}
+      </div>
+      ${s.error ? `<div class="err-text">⚠ ${s.error}</div>` : ""}
+      ${s.limitReason ? `<div class="err-text">⚠ ${s.limitReason}</div>` : ""}`;
+    n.addEventListener("click", () => select(s.id));
+    n.addEventListener("keydown", ev => {
+      if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); select(s.id); }
+      else if(["ArrowRight","ArrowDown","ArrowLeft","ArrowUp"].includes(ev.key)){
+        ev.preventDefault(); moveFocus(n, ev.key);
+      }
+    });
+    sec.appendChild(n);
+  });
+  board.appendChild(sec);
+});
+
+/* ---------------- list ---------------- */
+SESSIONS.forEach(s => {
+  const st = stateOf(s);
+  const stTxt = st === "err" ? "ERROR" : st === "stale" ? "STALE" : "OK";
+  const tr = document.createElement("tr");
+  tr.tabIndex = 0; tr.dataset.sid = s.id; tr.setAttribute("aria-selected","false");
+  tr.innerHTML = `<td><strong>${s.id}</strong></td><td>${s.provider}</td><td>${s.model}</td>
+    <td>${s.activity}</td><td class="num">${fmtN(s.used)}</td><td class="num">${fmtN(s.limit)}</td>
+    <td class="num">${occLabel(s)}</td><td>${s.source}</td><td>${rel(s.ageSec)}</td>
+    <td>${stTxt}${s.error ? " — "+s.error : ""}${s.limitReason ? " — "+s.limitReason : ""}</td>`;
+  tr.addEventListener("click", () => select(s.id));
+  tr.addEventListener("keydown", ev => {
+    if(ev.key === "Enter"){ ev.preventDefault(); select(s.id); }
+  });
+  listBody.appendChild(tr);
+});
+
+/* ---------------- activity strip ---------------- */
+const feed = [];
+SESSIONS.forEach(s => s.tools.forEach(([t,o,note,age]) =>
+  feed.push({sid:s.id, tool:t, outcome:o, note, age})));
+feed.sort((a,b) => a.age - b.age); /* newest first */
+feed.forEach(e => {
+  const d = document.createElement("div");
+  d.className = "act";
+  d.innerHTML = `<span class="tool">${e.tool}</span>
+    <span class="${e.outcome==="ok"?"out-ok":"out-err"}">${e.outcome.toUpperCase()}</span>
+    <span class="sess">${e.sid}</span>
+    <span class="note">${e.note}</span>
+    <span class="age">${rel(e.age)}</span>`;
+  actBody.appendChild(d);
+});
+
+/* ---------------- detail ---------------- */
+const detail = $("#detail"), detailDl = $("#detailDl"), detailTitle = $("#detailTitle");
+function select(sid){
+  const s = SESSIONS.find(x => x.id === sid);
+  document.querySelectorAll('[data-sid]').forEach(el =>
+    el.setAttribute("aria-selected", el.dataset.sid === sid ? "true" : "false"));
+  detail.hidden = false;
+  detailTitle.textContent = "SESSION — " + s.id;
+  const rows = [
+    ["Provider", s.provider], ["Model", s.model], ["Activity", s.activity],
+    ["Context used", fmtN(s.used)], ["Context limit", fmtN(s.limit)],
+    ["Occupancy", occLabel(s)], ["Measurement source", s.source],
+    ["Updated", s.ageSec == null ? "—" : rel(s.ageSec) + (stateOf(s)==="stale" ? " (STALE)" : "")],
+  ];
+  if(s.limitReason) rows.push(["Limit note", s.limitReason]);
+  if(s.error) rows.push(["Error", s.error]);
+  detailDl.innerHTML = rows.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  detail.scrollIntoView({block:"nearest"});
+  $("#detailClose").focus();
+}
+$("#detailClose").addEventListener("click", () => {
+  detail.hidden = true;
+  document.querySelectorAll('[data-sid]').forEach(el => el.setAttribute("aria-selected","false"));
+});
+
+/* ---------------- focus movement (board) ---------------- */
+function moveFocus(node, key){
+  const nodes = [...board.querySelectorAll(".node")];
+  const i = nodes.indexOf(node);
+  const cols = getComputedStyle(board).gridTemplateColumns.split(" ").length || 1;
+  let j = i;
+  if(key === "ArrowRight") j = i + 1;
+  if(key === "ArrowLeft") j = i - 1;
+  if(key === "ArrowDown") j = i + cols;
+  if(key === "ArrowUp") j = i - cols;
+  j = Math.max(0, Math.min(nodes.length - 1, j));
+  nodes[j].focus();
+}
+
+/* ---------------- view / motion / refresh / clock ---------------- */
+const root = document.documentElement, viewBtn = $("#viewBtn");
+function setView(v){
+  root.dataset.view = v;
+  viewBtn.textContent = "VIEW: " + v.toUpperCase();
+}
+$("#viewBtn").addEventListener("click", () =>
+  setView(root.dataset.view === "list" ? "sector" : "list"));
+const motionBtn = $("#motionBtn");
+function setMotion(on){
+  root.dataset.motion = on ? "on" : "off";
+  motionBtn.textContent = "MOTION: " + (on ? "ON" : "OFF");
+}
+motionBtn.addEventListener("click", () => setMotion(root.dataset.motion === "off"));
+if(matchMedia("(prefers-reduced-motion: reduce)").matches) setMotion(false);
+
+function tick(){
+  const d = new Date();
+  $("#clock").textContent = "updated " + d.toLocaleTimeString("en-US",{hour12:false});
+}
+tick(); setInterval(tick, 1000);
+$("#refreshBtn").addEventListener("click", () => { tick(); });
+
+document.addEventListener("keydown", ev => {
+  if(ev.target.matches("input,textarea")) return;
+  const k = ev.key.toLowerCase();
+  if(k === "1") setView("sector");
+  else if(k === "2") setView("list");
+  else if(k === "r") tick();
+  else if(k === "escape" && !detail.hidden) $("#detailClose").click();
+});
+</script>
+</body>
+</html>

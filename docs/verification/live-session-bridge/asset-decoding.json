@@ -1,0 +1,22 @@
+[
+  {
+    "path": "app/ui/assets/iggy-iso.png",
+    "source_encoding": "base64 PNG text; decoded verbatim, no image editing",
+    "before_sha256": "0b0bc63063dd0cde27a3bd01d834b01202597abc865dd361652bf18f3d8579ee",
+    "after_sha256": "d784483ce7110d6a394f8227f3e93f9fda07083515b2e8684644ed62169e4155",
+    "before_bytes": 26704,
+    "after_bytes": 20027,
+    "width": 82,
+    "height": 112
+  },
+  {
+    "path": "app/ui/assets/iggy-robot-iso.png",
+    "source_encoding": "base64 PNG text; decoded verbatim, no image editing",
+    "before_sha256": "295ecc4f6b1e58d30d18e0ad19e36f02b3074892c3e9f20ecf66bdd8c74cc95c",
+    "after_sha256": "7d8784b42d8a53c50444f62281e8bcddb6491a6b3f28c5baceecd566009833bc",
+    "before_bytes": 27384,
+    "after_bytes": 20538,
+    "width": 75,
+    "height": 112
+  }
+]
