@@ -209,9 +209,10 @@
   .prov-row .nm{color:var(--ink)}
   .prov-row .cnt{margin-left:auto; color:var(--dim)}
   /* detail */
-  #detailDl{display:grid; grid-template-columns:auto minmax(0,1fr);
+  #detailWin{margin:0 30px 18px}
+  #detailDl{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr);
     gap:4px 10px; font-size:10px; margin:0}
-  #detailDl dt{color:var(--dim)}
+  #detailDl dt{color:var(--dim); overflow-wrap:anywhere}
   #detailDl dd{margin:0; color:var(--ink); overflow-wrap:anywhere}
   /* pixel display type for chrome */
   header .title, .badge, #clock, .controls button, #activity h2, table caption{
@@ -234,6 +235,7 @@
     #boardView{grid-template-columns:minmax(0,1fr); margin:0; gap:12px;
       grid-template-areas:"sector" "side" "load" "prov"}
     .sidecol, .load-win, .prov-win{margin:0 8px}
+    #detailWin{margin:12px 8px 18px}
     .sector-view{width:100%}
     #viewport{display:none}
     .agent-tiles{display:grid; gap:12px}
@@ -254,3 +256,7 @@
     .sidecol{grid-template-columns:minmax(0,1fr)}
     .vp-tag, .vp-count{font-size:8px; padding:5px 8px}
   }
+
+  /* Historical numbers are explanatory notes, never an extra gauge column. */
+  .load-row .note{grid-column:1 / -1; font-size:11px; line-height:1.4}
+  .load-win .win-body{max-height:420px; overflow:auto}

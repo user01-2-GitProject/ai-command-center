@@ -1,0 +1,11 @@
+{
+  "passed": false,
+  "checks": [
+    "Real live sessions, not fixtures",
+    "Codex historical input is not occupancy",
+    "Unknown/stale agent positions remain stationary",
+    "Canvas work bounded, full list retained"
+  ],
+  "error": "Browser condition did not become true",
+  "errors": []
+}

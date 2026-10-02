@@ -9,12 +9,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from acc.registry import ProviderRegistry as CanonicalRegistry
 import server
 from server import Handler, build_poller
 
 
 def start_server(demo):
-    poller, mode = build_poller(demo=demo)
+    poller, mode = build_poller(demo=demo, registry=CanonicalRegistry() if not demo else None)
     poller.poll_once()
     Handler.poller = poller
     Handler.mode = mode
@@ -38,6 +39,7 @@ class ServerTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
+        cls.srv.server_close()
 
     def test_binds_loopback_only(self):
         self.assertEqual(self.srv.server_address[0], "127.0.0.1")
@@ -104,6 +106,49 @@ class ServerTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             get(self.base, "/ui/../server.py")
         self.assertEqual(ctx.exception.code, 404)
+        ctx.exception.close()
+
+    def test_original_art_is_actual_png_bytes(self):
+        import struct
+        for name in ('iggy-iso.png', 'iggy-robot-iso.png'):
+            status, body = get(self.base, '/ui/assets/' + name)
+            self.assertEqual(status, 200)
+            self.assertEqual(body[:8], b'\x89PNG\r\n\x1a\n')
+            width, height = struct.unpack('>II', body[16:24])
+            self.assertGreater(width, 0)
+            self.assertGreater(height, 0)
+
+    def test_security_headers_and_no_remote_font(self):
+        with urllib.request.urlopen(self.base + '/') as response:
+            self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
+            self.assertIn("connect-src 'self'", response.headers['Content-Security-Policy'])
+            self.assertNotIn(b'fonts.googleapis.com', response.read())
+
+    def test_foreign_host_and_origin_denied(self):
+        for headers, status in [({'Host': 'evil.example'}, 421),
+                                ({'Origin': 'https://evil.example'}, 403),
+                                ({'Sec-Fetch-Site': 'cross-site'}, 403)]:
+            request = urllib.request.Request(self.base + '/api/sessions', headers=headers)
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(request, timeout=5)
+            self.assertEqual(ctx.exception.code, status)
+            ctx.exception.close()
+
+    def test_asset_symlink_cannot_escape_ui_root(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ui = root / 'ui'
+            ui.mkdir()
+            outside = root / 'private.txt'
+            outside.write_text('PRIVATE CANARY')
+            (ui / 'leak.txt').symlink_to(outside)
+            from unittest.mock import patch
+            with patch.object(server, 'UI_DIR', ui):
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    get(self.base, '/ui/leak.txt')
+                self.assertEqual(ctx.exception.code, 404)
+                ctx.exception.close()
 
     def test_read_only_no_post(self):
         req = urllib.request.Request(self.base + "/api/sessions",
@@ -111,6 +156,7 @@ class ServerTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             urllib.request.urlopen(req, timeout=5)
         self.assertNotEqual(ctx.exception.code, 200)
+        ctx.exception.close()
 
 
 class LiveModeTest(unittest.TestCase):
@@ -121,6 +167,7 @@ class LiveModeTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
+        cls.srv.server_close()
 
     def test_live_mode_with_no_adapters_is_honestly_empty(self):
         """No silent fallback to demo data: empty registry, empty providers."""

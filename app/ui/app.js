@@ -26,6 +26,9 @@ let payload = null;
 let selectedId = null;
 let pollTimer = null;
 let motionOn = true;
+let refreshInFlight = false;
+let transportLost = false;
+const {agePayload, isBusy, isStale} = window.ACC_TELEMETRY;
 
 const root = document.documentElement;
 const canvas = $("#sector");
@@ -37,16 +40,40 @@ const modeBadge = $("#modeBadge");
 
 /* ================= data ================= */
 async function refresh() {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  const controller = new AbortController();
+  let deadline;
   try {
-    const res = await fetch("/api/sessions", { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    payload = await res.json();
+    // Race the complete read, including body parsing. Abort alone cannot
+    // release the guard if a transport/body reader ignores cancellation.
+    const timeout = new Promise((_, reject) => {
+      deadline = setTimeout(() => {
+        reject(new Error("Metadata deadline"));
+        try { controller.abort(); } catch (_) { /* Still release and retry. */ }
+      }, 10000);
+    });
+    const read = (async () => {
+      const res = await fetch("/api/sessions", { cache: "no-store", signal: controller.signal });
+      if (!res.ok) throw new Error("Metadata unavailable");
+      return await res.json();
+    })();
+    const incoming = await Promise.race([read, timeout]);
+    if (!incoming || !Array.isArray(incoming.providers) || incoming.providers.some(p => !Array.isArray(p.sessions))) throw new Error("Malformed metadata");
+    payload = agePayload(incoming);
+    transportLost = false;
     connError.hidden = true;
     render();
   } catch (e) {
+    transportLost = true;
     connError.hidden = false;
+    if (payload) { payload = agePayload(payload, Date.now(), true); render(); }
+  } finally {
+    clearTimeout(deadline);
+    try { controller.abort(); } catch (_) { /* No private transport errors. */ }
+    refreshInFlight = false;
+    schedule();
   }
-  schedule();
 }
 
 function schedule() {
@@ -61,6 +88,16 @@ function allSessions() {
   const provs = [...payload.providers].sort((a, b) => a.provider.localeCompare(b.provider));
   provs.forEach((p) => (p.sessions || []).forEach((s) => out.push(s)));
   return out;
+}
+
+/* Bound canvas work; every indexed session remains available in the list. */
+function sessionKey(s) { return JSON.stringify([s.provider_id || s.provider, s.session_id]); }
+function sceneSessions() {
+  const all = allSessions();
+  const shown = all.slice(0, 6);
+  const chosen = all.find(s => sessionKey(s) === selectedId);
+  if (chosen && !shown.includes(chosen)) shown[shown.length - 1] = chosen;
+  return shown;
 }
 
 function occLabel(s) {
@@ -294,11 +331,11 @@ function sessionTile(i) {
 /* per-frame room layout: design coords of each session's tile center.
    Robots wander gently near home while motion is on. */
 function layout(t) {
-  return allSessions().map((s, i) => {
+  return sceneSessions().map((s, i) => {
     const [hx, hy] = sessionTile(i);
     const [cx, cy] = iso(hx, hy);
     let wx = 0, wy = 0;
-    if (motionOn) {
+    if (motionOn && isBusy(s, payload.mode === "demo")) {
       wx = Math.sin(t * 0.32 + i * 2.4) * 34;
       wy = Math.sin(t * 0.23 + i * 1.7) * 16;
     }
@@ -360,17 +397,17 @@ function drawRoom(g, v, t, L, opts) {
   g.textAlign = "center";
   order.forEach((e) => {
     const { s, i } = e;
-    const stale = s.freshness === "stale";
+    const stale = isStale(s);
     const err = s.activity === "error" || !!s.error;
     const spr = sprites[s.provider][stale || err ? "dim" : "normal"];
     const rw = spr.width, rh = spr.height;
-    const bob = (motionOn && s.activity === "working") ? Math.sin(t * 3 + i * 1.7) * 3 : 0;
+    const bob = (motionOn && isBusy(s, payload.mode === "demo")) ? Math.sin(t * 3 + i * 1.7) * 3 : 0;
     const fx = e.x, fy = e.y + 6; /* feet */
 
     g.fillStyle = "rgba(0,0,0,0.35)";
     g.beginPath(); g.ellipse(fx, fy + 2, 22, 8, 0, 0, Math.PI * 2); g.fill();
 
-    if (s.session_id === selectedId) {
+    if (sessionKey(s) === selectedId) {
       const a = motionOn ? 0.55 + 0.45 * Math.sin(t * 4) : 0.9;
       g.globalAlpha = a;
       diamond(g, fx, fy - 6, TILE_W + 10, TILE_H + 10, null, "#41e6ff");
@@ -383,7 +420,7 @@ function drawRoom(g, v, t, L, opts) {
       g.font = '14px "Press Start 2P", monospace';
       g.fillStyle = "#ff5a5a";
       g.fillText("?", fx, fy - rh - 12 + bob);
-    } else if (s.activity === "working") {
+    } else if (isBusy(s, payload.mode === "demo")) {
       g.fillStyle = "#50ff8c";
       const r = motionOn ? 4 + Math.sin(t * 5 + i) * 1.5 : 4;
       g.beginPath(); g.arc(fx + 20, fy - rh + bob, r, 0, Math.PI * 2); g.fill();
@@ -394,7 +431,7 @@ function drawRoom(g, v, t, L, opts) {
     const label = s.session_id.length > 12 ? s.session_id.slice(0, 11) + "\u2026" : s.session_id;
     g.fillText(label, fx, fy - rh - 26 + bob);
 
-    anchorsOut.push({ sid: s.session_id, x: fx, y: fy - rh / 2 });
+    anchorsOut.push({ sid: sessionKey(s), x: fx, y: fy - rh / 2 });
   });
 
   /* iggy the operator: grounded isometric sprite, gentle bob */
@@ -447,8 +484,8 @@ function tileHome(i) {
 }
 
 function syncTiles() {
-  const sessions = allSessions();
-  const want = sessions.map((s, i) => ({ key: "s:" + s.session_id, s, i }))
+  const sessions = sceneSessions();
+  const want = sessions.map((s, i) => ({ key: "s:" + sessionKey(s), s, i }))
     .concat((payload.providers || []).filter((p) => !p.ok)
       .map((p) => ({ key: "e:" + p.provider, err: p })));
   const wantKeys = new Set(want.map((w) => w.key));
@@ -478,9 +515,9 @@ function syncTiles() {
     if (tl.s) {
       d.setAttribute("role", "button");
       d.setAttribute("aria-label", "Agent window: " + tl.s.session_id + ". Activate to open details.");
-      d.addEventListener("click", () => select(tl.s.session_id));
+      d.addEventListener("click", () => select(sessionKey(tl.s)));
       d.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(tl.s.session_id); }
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(sessionKey(tl.s)); }
       });
     } else {
       d.setAttribute("aria-label", "Provider error: " + tl.err.provider);
@@ -502,13 +539,13 @@ function fitTiles() {
 function updateTileTags() {
   tiles.forEach((tl) => {
     if (tl.s) {
-      const s = allSessions().find((x) => x.session_id === tl.s.session_id) || tl.s;
+      const s = allSessions().find((x) => sessionKey(x) === sessionKey(tl.s)) || tl.s;
       const err = s.activity === "error" || !!s.error;
-      const stale = s.freshness === "stale";
+      const stale = isStale(s);
       tl.nm.textContent = (s.session_id.length > 12 ? s.session_id.slice(0, 11) + "\u2026" : s.session_id).toUpperCase();
       tl.dot.style.background = err ? "#ff5a5a" : stale ? "#ffb347"
-        : s.activity === "working" ? "#39ff6a" : "#8ba3c4";
-      const sel = s.session_id === selectedId;
+        : isBusy(s, payload.mode === "demo") ? "#39ff6a" : "#8ba3c4";
+      const sel = sessionKey(s) === selectedId;
       tl.el.classList.toggle("sel", sel);
       tl.el.setAttribute("aria-selected", sel ? "true" : "false");
     } else if (tl.err) {
@@ -535,7 +572,7 @@ function drawAll(t) {
   if (tilesEl.offsetParent !== null) {
     tiles.forEach((tl) => {
       if (tl.s) {
-        const e = L.find((en) => en.s.session_id === tl.s.session_id);
+        const e = L.find((en) => sessionKey(en.s) === sessionKey(tl.s));
         if (e) { /* ease the camera toward the wandering robot */
           tl.focus.x += (e.x - tl.focus.x) * 0.08;
           tl.focus.y += ((e.y + 6) - tl.focus.y) * 0.08;
@@ -551,14 +588,14 @@ function drawAll(t) {
 let rafId = null;
 const t0 = performance.now();
 function loop(now) {
-  if (root.dataset.view !== "sector") { rafId = null; return; }
+  if (root.dataset.view !== "sector" || document.hidden) { rafId = null; return; }
   drawAll((now - t0) / 1000);
   rafId = motionOn ? requestAnimationFrame(loop) : null;
 }
 function kickRender() {
   if (rafId) cancelAnimationFrame(rafId);
   rafId = null;
-  if (motionOn && root.dataset.view === "sector") {
+  if (motionOn && !document.hidden && root.dataset.view === "sector") {
     rafId = requestAnimationFrame(loop);
   } else {
     drawAll(0);
@@ -598,7 +635,7 @@ function renderActivity() {
       feed.push({ sid: s.session_id, tool: t.tool, outcome: t.outcome, note: t.note, at: t.at })));
   feed.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   if (!feed.length) {
-    actBody.appendChild(el("div", "note", "No tool activity reported."));
+    actBody.appendChild(el("div", "note", payload.mode === "demo" ? "No tool activity reported." : "Tool activity unavailable from the configured read-only source."));
     return;
   }
   feed.forEach((e) => {
@@ -617,10 +654,11 @@ function renderList() {
   const listBody = $("#listBody");
   listBody.replaceChildren();
   allSessions().forEach((s) => {
-    const stTxt = s.error ? "ERROR" : s.freshness === "stale" ? "STALE" : "OK";
+    const stTxt = s.error ? "ERROR" : isStale(s) ? "STALE" : "OK";
     const tr = el("tr");
     tr.tabIndex = 0;
-    tr.setAttribute("aria-selected", s.session_id === selectedId ? "true" : "false");
+    tr.dataset.sessionKey = sessionKey(s);
+    tr.setAttribute("aria-selected", sessionKey(s) === selectedId ? "true" : "false");
     const cells = [
       [s.session_id, true], [s.provider, false], [s.model, false],
       [s.activity, false], [fmtN(s.context_used), false, "num"],
@@ -629,16 +667,16 @@ function renderList() {
     ];
     cells.forEach(([text, strong, cls]) => {
       const td = el("td", cls || null);
-      td.appendChild(strong ? el("strong", null, text) : document.createTextNode(text));
+      td.appendChild(strong ? el("strong", null, text) : document.createTextNode(text === null || text === undefined ? "—" : text));
       tr.appendChild(td);
     });
     let state = stTxt;
     if (s.error) state += " — " + s.error;
     else if (s.unavailable_reason && s.percent_used === null) state += " — " + s.unavailable_reason;
     tr.appendChild(el("td", null, state));
-    tr.addEventListener("click", () => select(s.session_id));
+    tr.addEventListener("click", () => select(sessionKey(s)));
     tr.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") { ev.preventDefault(); select(s.session_id); }
+      if (ev.key === "Enter") { ev.preventDefault(); select(sessionKey(s)); }
     });
     listBody.appendChild(tr);
   });
@@ -652,16 +690,17 @@ function renderLoad() {
     const nm = el("span", "nm", s.session_id);
     nm.title = `${s.provider} · ${fmtN(s.context_used)} / ${fmtN(s.context_limit)} tokens`;
     row.appendChild(nm);
-    const bar = el("div", "load-bar");
+    const bar = el("div", "load-bar" + (s.percent_used === null ? " unknown" : ""));
     const fill = el("div", "load-fill" +
       (s.percent_used === null ? " unknown" : s.percent_used > 85 ? " warn" : ""));
     if (s.percent_used !== null) fill.style.width = Math.min(100, s.percent_used) + "%";
-    else fill.style.width = "100%";
+    else fill.style.width = "0%";
     fill.setAttribute("role", "img");
     fill.setAttribute("aria-label", `context occupancy ${occLabel(s)}`);
     bar.appendChild(fill);
     row.appendChild(bar);
     row.appendChild(el("span", "pc", occLabel(s)));
+    if (s.last_request_input !== null && s.last_request_input !== undefined) row.appendChild(el("span", "note", "Last request input: " + fmtN(s.last_request_input) + " tokens (historical, not occupancy; " + s.context_freshness + ")"));
     body.appendChild(row);
   });
 }
@@ -674,23 +713,27 @@ function renderProviders() {
     .forEach((p) => {
       const row = el("div", "prov-row");
       row.appendChild(el("span", "nm", p.provider.toUpperCase()));
-      const worst = !p.ok ? "err"
-        : (p.sessions || []).some((s) => s.freshness === "stale") ? "stale" : "ok";
+      const worst = !p.ok ? "err" : "ok";
       row.appendChild(el("span", "pill " + worst,
-        { ok: "HEALTHY", stale: "STALE DATA", err: "PROVIDER ERROR" }[worst]));
+        p.status ? ({connected:"SOURCE READABLE",disconnected:"DISCONNECTED",stale:"STALE SOURCE",unreachable:"SERVER UNREACHABLE",error:"SOURCE ERROR"}[p.status] || "SOURCE UNKNOWN") : (p.ok ? "DEMO SOURCE" : "DEMO ERROR")));
       const n = (p.sessions || []).length;
       row.appendChild(el("span", "cnt", `${n} session${n === 1 ? "" : "s"}` +
         (p.ok ? "" : ` — ${p.error || "error"}`)));
+      if (p.source_version) row.appendChild(el("span", "note", "version " + p.source_version));
+      if (p.truncated) row.appendChild(el("span", "note", "source cap reached; total unknown"));
       body.appendChild(row);
     });
 }
 
-function select(sid) {
+function select(sid, {scroll = true} = {}) {
   selectedId = sid;
-  const s = allSessions().find((x) => x.session_id === sid);
+  const s = allSessions().find((x) => sessionKey(x) === sid);
   const win = $("#detailWin");
   document.querySelectorAll("#listBody tr").forEach((n) =>
     n.setAttribute("aria-selected", "false"));
+  syncTiles();
+  fitTiles();
+  updateTileTags();
   if (!s) { win.hidden = true; kickRender(); return; }
   win.hidden = false;
   $("#detailTitle").textContent = "SESSION — " + s.session_id.toUpperCase().slice(0, 18);
@@ -701,8 +744,11 @@ function select(sid) {
     ["Context used", fmtN(s.context_used)], ["Context limit", fmtN(s.context_limit)],
     ["Occupancy", occLabel(s)], ["Measurement source", s.source],
     ["Observed at", s.observed_at || "—"],
-    ["Freshness", s.freshness + (s.freshness === "stale" ? ` (older than ${payload.stale_after_sec}s)` : "")],
+    ["Freshness", s.freshness + (isStale(s) ? ` (older than ${payload.stale_after_sec}s)` : "")],
   ];
+  if (s.context_semantic) rows.push(["Context semantic", s.context_semantic], ["Context event time", s.context_event_time || "—"], ["Context freshness", s.context_freshness], ["Session event time", s.last_update || "—"], ["Source freshness", s.source_freshness], ["Source version", s.source_version || "—"], ["Route verified", s.route_verified ? "yes" : "no — occupancy unavailable"], ["Tool feed", s.tools_available ? "available" : "unavailable"]);
+  if (s.last_request_input !== null && s.last_request_input !== undefined) rows.push(["Last request input (historical, not occupancy)", fmtN(s.last_request_input)]);
+  if (s.reported_context_window !== null && s.reported_context_window !== undefined) rows.push(["Reported window (informational only)", fmtN(s.reported_context_window)]);
   if (s.unavailable_reason) rows.push(["Unavailable reason", s.unavailable_reason]);
   if (s.error) rows.push(["Error", s.error]);
   rows.forEach(([k, v]) => {
@@ -710,22 +756,23 @@ function select(sid) {
     dl.appendChild(el("dd", null, v));
   });
   document.querySelectorAll("#listBody tr").forEach((n) => {
-    const strong = n.querySelector("strong");
-    if (strong && strong.textContent === sid) n.setAttribute("aria-selected", "true");
+    if (n.dataset.sessionKey === sid) n.setAttribute("aria-selected", "true");
   });
   updateTileTags();
   kickRender();
-  win.scrollIntoView({ block: "nearest" });
+  if (scroll) win.scrollIntoView({ block: "nearest" });
 }
 
 $("#detailX").addEventListener("click", () => {
   $("#detailWin").hidden = true;
   selectedId = null;
+  if (payload) { syncTiles(); fitTiles(); updateTileTags(); }
   kickRender();
 });
 
 /* ================= render root ================= */
 function render() {
+  payload = agePayload(payload, Date.now(), transportLost);
   const demo = payload.mode === "demo";
   demoBanner.hidden = !demo;
   modeBadge.textContent = demo ? "DEMO" : "LIVE";
@@ -747,7 +794,7 @@ function render() {
   syncTiles();
   fitTiles();
   const nSessions = allSessions().length;
-  $("#vpCount").textContent = nSessions + (nSessions === 1 ? " SESSION" : " SESSIONS");
+  $("#vpCount").textContent = sceneSessions().length + " OF " + nSessions + " INDEXED · ALL IN LIST";
   canvas.setAttribute("aria-label",
     "Robot room viewport: " + nSessions + (nSessions === 1 ? " session" : " sessions") + ". " +
     allSessions().map((s) => s.session_id + " " + s.activity).join(", ") +
@@ -758,15 +805,16 @@ function render() {
   renderList();
   renderLoad();
   renderProviders();
-  if (selectedId && !allSessions().some((s) => s.session_id === selectedId)) {
+  if (selectedId && !allSessions().some((s) => sessionKey(s) === selectedId)) {
     $("#detailWin").hidden = true; selectedId = null;
-  }
+  } else if (selectedId) { select(selectedId, {scroll:false}); }
 }
 
 /* ================= controls ================= */
 function setView(v) {
   root.dataset.view = v;
   $("#viewBtn").textContent = "VIEW: " + v.toUpperCase();
+  fitTiles(); // Hidden list tiles need real geometry before the sector paints.
   kickRender();
 }
 $("#viewBtn").addEventListener("click", () =>
@@ -779,13 +827,17 @@ function setMotion(on) {
   kickRender();
 }
 $("#motionBtn").addEventListener("click", () => setMotion(!motionOn));
-if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setMotion(false);
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+if (reducedMotion.matches) setMotion(false);
+reducedMotion.addEventListener("change", () => { if (reducedMotion.matches) setMotion(false); });
+document.addEventListener("visibilitychange", kickRender);
 
 function tick() {
-  $("#clock").textContent = "updated " + new Date().toLocaleTimeString("en-US", { hour12: false });
+  $("#clock").textContent = "checked " + relTime(payload && (payload.updated_at || payload.generated_at));
 }
 tick();
 setInterval(tick, 1000);
+setInterval(() => { if (payload && !document.hidden) render(); }, 5000);
 $("#refreshBtn").addEventListener("click", refresh);
 
 document.addEventListener("keydown", (ev) => {

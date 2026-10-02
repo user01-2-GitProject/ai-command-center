@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Command Center</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
@@ -28,12 +26,13 @@
 
 <main>
   <p class="sr">Keys: 1 sector view, 2 list view, arrows move between sessions, Enter opens details, R refreshes.</p>
+  <p class="note">The room shows up to six indexed sessions; the list shows every returned session. Iggy is decorative, not an activity indicator. Agent movement requires fresh, explicitly verified busy state.</p>
 
   <div class="empty-state" id="emptyState" hidden>
     <strong>NO PROVIDERS CONNECTED</strong>
     <span>Live mode: no provider adapters are registered, so there is
     nothing to show yet — and no demo data is substituted.<br>
-    Real adapters land with ACC-09 / ACC-10 / ACC-PA-codex.
+    Live adapters must be enabled in the reviewed adapter manifest.
     To preview the UI, restart with <code>--demo</code>.</span>
   </div>
 
@@ -54,10 +53,6 @@
         <div class="win-body"><div id="activityBody"></div></div>
       </section>
 
-      <section class="win" id="detailWin" aria-label="Session details" hidden>
-        <div class="win-bar" aria-hidden="true"><span class="win-icon"></span><span class="win-title" id="detailTitle">SESSION</span><span class="win-btns"><i>_</i><i>&#9633;</i><i class="x" id="detailX">X</i></span></div>
-        <div class="win-body"><dl id="detailDl"></dl></div>
-      </section>
     </div>
 
     <section class="win load-win" aria-label="Context load">
@@ -82,6 +77,10 @@
       <tbody id="listBody"></tbody>
     </table>
   </section>
+  <section class="win" id="detailWin" aria-label="Session details" hidden>
+    <div class="win-bar" aria-hidden="true"><span class="win-icon"></span><span class="win-title" id="detailTitle">SESSION</span><span class="win-btns"><i>_</i><i>&#9633;</i><i class="x" id="detailX">X</i></span></div>
+    <div class="win-body"><dl id="detailDl"></dl></div>
+  </section>
 </main>
 
 <footer>
@@ -90,6 +89,7 @@
   No prompt or conversation content is rendered anywhere on this screen.
 </footer>
 
+<script src="/ui/telemetry.js"></script>
 <script src="/ui/app.js"></script>
 </body>
 </html>

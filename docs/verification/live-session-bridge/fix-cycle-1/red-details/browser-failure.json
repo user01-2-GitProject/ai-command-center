@@ -1,0 +1,13 @@
+{
+  "passed": false,
+  "checks": [
+    "Synthetic canonical-contract fixtures, NOT actual sources",
+    "Codex historical input is not occupancy",
+    "Unknown/stale agent positions remain stationary",
+    "Canvas work bounded, full list retained",
+    "Original Iggy sprite decoded",
+    "Every returned session appears in plain list"
+  ],
+  "error": "List selection must visibly present details with nonzero viewport geometry\n\nfalse !== true\n",
+  "errors": []
+}

@@ -12,3 +12,10 @@ __pycache__/
 *.pyc
 .DS_Store
 .claude/worktrees/
+
+# Real-session evidence is Library-only, not for a potentially public remote.
+docs/verification/live-session-bridge/desktop-live.png
+docs/verification/live-session-bridge/list-details-live.png
+docs/verification/live-session-bridge/mobile-live.png
+docs/verification/live-session-bridge/live-source-summary.json
+docs/verification/live-session-bridge/review-1-evidence/
